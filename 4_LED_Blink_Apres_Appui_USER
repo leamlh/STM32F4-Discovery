@@ -1,0 +1,72 @@
+// Allumer les LED ROUGE, ORANGE, VERT, BLEU, les unes après les autres à chaque appui de bouton USER
+// 
+
+#include <stm32f4xx_hal.h>
+
+void config_initial(void);
+void attendre(unsigned int temps); // en ms
+ 
+int a = 0; // variale qui compte le nombre d'appui sur le bouton
+
+int main(void)
+{	
+  config_initial();
+  while (1)
+  { 
+    attendre(100);
+  }
+}
+void config_initial(void)
+{	
+  // on veut configurer le pin 12 en sortie  c-a-d les bits 25 et 24 du registre MODER du port D à 01
+  // activation du port D
+  __HAL_RCC_GPIOD_CLK_ENABLE(); // sur le port D
+	GPIO_InitTypeDef monLED;
+	monLED.Mode = GPIO_MODE_OUTPUT_PP;
+	monLED.Pin = GPIO_PIN_14 | GPIO_PIN_13 | GPIO_PIN_12 | GPIO_PIN_15; // LED ROUGE | LED ORANGE |LED VERTE | LED BLEUE
+	
+	HAL_GPIO_Init(GPIOD, &monLED); 
+
+	// on veut configurer le pin 0 en entrée
+	// activation du port A 
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	GPIO_InitTypeDef monButton;
+	monButton.Mode = GPIO_MODE_IT_RISING; // RESTE ALLUME LORS DE l'APPUI
+	monButton.Pin = GPIO_PIN_0; 	
+	
+	HAL_GPIO_Init(GPIOA, &monButton); 
+	HAL_NVIC_SetPriority(EXTI0_IRQn,5,5); // PreemtPriority = 5, SubPriority = 5
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn); 
+}
+
+void attendre(unsigned int temps)
+{
+  for (unsigned int i = 0; i < temps*4000; i++);
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) // Boucle qui allume la LED selon le nombre d'appui
+{
+	if(GPIO_Pin == GPIO_PIN_0){
+		if(a==0){ // 1er appui
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0));	// allume led rouge
+		}
+		if(a==1){ // 2eme appui
+			HAL_GPIO_WritePin(GPIOD,GPIO_PIN_14,0); // atteint led rouge
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0)); // allume led orange
+		}
+		if(a==2){ // 3ème appui
+			HAL_GPIO_WritePin(GPIOD,GPIO_PIN_13,0); // éteint led orange
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0)); // allume led verte
+		}
+		if(a==3){ // 4eme appui
+			HAL_GPIO_WritePin(GPIOD,GPIO_PIN_12,0); // éteint led verte
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0)); // allume led bleue
+		}	
+	}
+	a+=1;
+}
+void EXTI0_IRQHandler(void)
+{
+	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
