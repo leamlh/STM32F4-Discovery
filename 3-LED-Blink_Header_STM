@@ -1,0 +1,39 @@
+// Faire clignoter la LED Verte avec les headers STM
+
+#include <stm32f407xx.h>
+
+void config_initial(void);
+void attendre(unsigned int temps);
+
+int main(void)
+{
+  config_initial();
+  /* Infinite loop */
+  while (1)
+  {
+    GPIOD->ODR ^= GPIO_ODR_OD12;
+    attendre(1000);
+  }
+}
+
+void config_initial(void)
+{
+  do
+	{
+  RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN; // activation du port D
+  }
+	while (!(RCC->AHB1ENR & RCC_AHB1ENR_GPIODEN));  //Delay after an RCC peripheral clock enabling
+  
+  // on veut configurer le pin 12 en sortie  c-a-d les bits 25 et 24 du registre MODER du port D à 01
+  unsigned int moder = GPIOD->MODER;
+  moder &= (unsigned int)~GPIO_MODER_MODE12_Msk;  // on met les bits 25 et 24 du registre MODER du port D à 00
+  moder |= (unsigned int) GPIO_MODER_MODE12_0;      // on met le bit 24 du registre MODER du port D à 1
+  GPIOD->MODER = moder;
+  // on veut configurer le pin 12 en connexion push-pull c-a-d le bit 12 du registre OTYPER du port D à 0
+  GPIOD->OTYPER &= ~GPIO_OTYPER_OT12;   // on met le bit 12 du registre OTYPER du port D à 1 (décalage 1 => 4 octets)
+}
+
+void attendre(unsigned int temps)
+{
+  for (int i = 0; i < temps*4000; i++);
+}
