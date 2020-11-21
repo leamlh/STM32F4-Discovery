@@ -1,0 +1,61 @@
+// Allumer toutes les leds avec un systick
+//
+
+#include <stm32f4xx_hal.h>
+
+void config_initial(void);
+void attendre(unsigned int temps);
+
+volatile unsigned int timeDelay = 0;
+unsigned int ticks = 10000;
+
+uint8_t i = 0;    //Déclaration de i pour incrementer la valeur du tableau
+
+int main(void)
+{
+  HAL_Init();  
+  config_initial();
+	
+  /* Infinite loop */
+  while (1)
+  {
+        HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15);
+        attendre(500);
+  }
+}
+
+void config_initial(void)
+{
+// on veut configurer la pin 12 du port D en sortie push-pull
+    
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+    
+    GPIO_InitTypeDef monLED;
+    monLED.Mode = GPIO_MODE_OUTPUT_PP;
+    monLED.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
+    
+    HAL_GPIO_Init(GPIOD, &monLED);
+    
+    SysTick->CTRL = 0;
+    SysTick->LOAD = ticks -1;
+    NVIC_SetPriority(SysTick_IRQn, (1 << __NVIC_PRIO_BITS) - 1);
+    SysTick->VAL = 0;
+    SysTick->CTRL |= SysTick_CTRL_CLKSOURCE_Msk;
+    SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
+    SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+    
+}
+
+void attendre(unsigned int temps)
+{
+    timeDelay = temps;
+    while (timeDelay != 0);
+}
+
+void SysTick_Handler (void)
+{
+    if (timeDelay > 0)
+    {
+        timeDelay--;
+    }
+}
