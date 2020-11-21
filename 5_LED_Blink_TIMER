@@ -1,0 +1,71 @@
+// Allumer toutes les LEDS les unes après les autres grâce à un TIMER
+
+
+#include <stm32f4xx_hal.h>
+
+void config_initial(void);
+TIM_HandleTypeDef htim4;   
+
+int main(void)
+{   
+  config_initial();
+  HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_OC_Start(&htim4, TIM_CHANNEL_4);
+}
+
+void config_initial(void)
+{
+// activation du port D
+    __HAL_RCC_GPIOD_CLK_ENABLE(); 
+    GPIO_InitTypeDef monLED;
+	
+// on configure les pins 12 à 15 en sortie push-pull
+    monLED.Mode = GPIO_MODE_AF_PP;
+    
+// TODO fonction TIM4
+    monLED.Alternate = GPIO_AF2_TIM4;
+    monLED.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
+    
+    HAL_GPIO_Init(GPIOD, &monLED);
+    
+// activation du TIM4
+    __HAL_RCC_TIM4_CLK_ENABLE(); 
+
+// Select the counter clock
+    TIM_ClockConfigTypeDef sClockSourceTIM4Config;
+    sClockSourceTIM4Config.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+    HAL_TIM_ConfigClockSource(&htim4, &sClockSourceTIM4Config);
+    
+// Write the desired data in the TIMx_ARR and TIMx_CCRx registers.
+    htim4.Instance = TIM4;
+    htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim4.Init.Prescaler = 16000 - 1;
+    htim4.Init.Period = 500;
+    
+    HAL_TIM_OC_Init(&htim4);
+    
+    TIM_OC_InitTypeDef channelConfig;
+    channelConfig.OCMode = TIM_OCMODE_TOGGLE;
+    channelConfig.OCPolarity = TIM_OCPOLARITY_HIGH;
+    
+    channelConfig.Pulse = 125;
+    HAL_TIM_OC_ConfigChannel(&htim4, &channelConfig, TIM_CHANNEL_1);
+    channelConfig.Pulse = 250;
+    HAL_TIM_OC_ConfigChannel(&htim4, &channelConfig, TIM_CHANNEL_2);
+    channelConfig.Pulse = 375;
+    HAL_TIM_OC_ConfigChannel(&htim4, &channelConfig, TIM_CHANNEL_3);
+    channelConfig.Pulse = 500;
+    HAL_TIM_OC_ConfigChannel(&htim4, &channelConfig, TIM_CHANNEL_4);
+}
+
+
+/*
+1. Select the counter clock (internal, external, prescaler).
+2. Write the desired data in TIMx_ARR and TIMx_CCRx registers
+3. Set the CCxIE and/or CCxDE bits if an interup and/or a DMA request is to be generated.
+4. Select the output mode.
+5. Enable the counter by setting the CEN bit in the TIMx_CR1 register.
+*/
