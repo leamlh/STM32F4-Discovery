@@ -1,0 +1,103 @@
+// Communication SPI accéléromètre sur l'axe X. La LED s'allume à chaque fin de temps systick et la valeur reçue peut-être lue grâce à la variable spi_receive_data 
+
+#include <stm32f4xx_hal.h>
+#include <stm32f4xx_hal_spi.h>
+
+void config_initial(void);
+void attendre(unsigned int temps); // en ms
+SPI_HandleTypeDef spiACC;
+unsigned char spiSendData[2]; 
+unsigned char spiReceiveData[2];
+
+int main(void)
+{	
+	HAL_Init(); // init pour le systick
+  config_initial();
+	
+	// INIT le Chip select CS
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+	
+	// Au registre CTRL_REG4 (Ox20) on configure le ODR à 3.125Hz
+	// 0001 0111 = 0x17
+	spiSendData[0] = 0x20; // CTRL REG1
+	spiSendData[1] = 0x17; // Data arate
+	
+	// cs actif
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+	// send data 
+	HAL_SPI_Transmit(&spiACC, spiSendData, 2, 50); 
+	// cs inactif 
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+	// read x axis low data register 0x2D
+	// to read the first bit must be set -> 1000 000 = 0x80
+	spiSendData[0] = 0x2C | 0x80 ; // 2C pour que l'accéléromètre se modifie tout seul ; 2D pour modifier en bougeant
+	
+  /* Infinite loop */
+  while (1)
+  { 
+		// cs actif
+		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+		// send data 
+		HAL_SPI_Transmit(&spiACC, spiSendData, 1, 50); 
+		// receive data 
+		HAL_SPI_Receive(&spiACC, spiReceiveData, 1, 50); // lecture de la valeur sur spi_receive_data 
+		// cs inactif 
+		HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+		
+		if(spiReceiveData[0] != 0)
+			HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12); // allume la led a chaque lecture si la valeur lue n'est pas égale a 0
+	
+    HAL_Delay(300); // attend grace au systick
+  }
+}
+
+void config_initial(void)
+{	
+  // On veut configurer les pins 5 6 et 7 pour le SPI du port A en sortie alternative SPI
+  __HAL_RCC_GPIOA_CLK_ENABLE(); // sur le port D
+	GPIO_InitTypeDef SPI_Pins;
+	SPI_Pins.Mode = GPIO_MODE_AF_PP;
+	SPI_Pins.Alternate = GPIO_AF5_SPI1; // Fonction alternative ref manual p.272
+	SPI_Pins.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	SPI_Pins.Pin = GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7; // Pins a programmer user manuel p.22
+	
+	HAL_GPIO_Init(GPIOA, &SPI_Pins); 
+	
+	// SPI SORTIE -> On veut configurer le pin 3 du port E en sortie alternative SPI
+  __HAL_RCC_GPIOE_CLK_ENABLE(); // sur le port E
+	GPIO_InitTypeDef SPI_CS_Pins;
+	SPI_CS_Pins.Mode = GPIO_MODE_OUTPUT_PP;	
+	SPI_CS_Pins.Speed = GPIO_SPEED_LOW;
+	SPI_CS_Pins.Pin = GPIO_PIN_3; // p.876 ref manual -> Pas de pin dédiée pour Slave Select (NSS) donc on lui dédie un GPIO. 
+	
+	HAL_GPIO_Init(GPIOE, &SPI_CS_Pins);   
+	
+	// LED -> On veut configurer le pin 12 du port D en sortie push-pull pour allumer la LED 
+  __HAL_RCC_GPIOD_CLK_ENABLE(); 
+	GPIO_InitTypeDef LED_pins;
+	LED_pins.Mode = GPIO_MODE_OUTPUT_PP;	
+	LED_pins.Pin = GPIO_PIN_12; // LED a allumer
+	
+	HAL_GPIO_Init(GPIOD, &LED_pins);   
+
+	// SPI Configuration
+	__HAL_RCC_SPI1_CLK_ENABLE(); // On active le SPI1 
+	spiACC.Instance = SPI1; // Correspond à la fonction AF5
+	spiACC.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16; 
+	spiACC.Init.CLKPhase = SPI_PHASE_1EDGE; 
+	spiACC.Init.CLKPolarity = SPI_POLARITY_LOW; 
+	spiACC.Init.DataSize = SPI_DATASIZE_8BIT;
+	spiACC.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	spiACC.Init.NSS = SPI_NSS_SOFT;
+	spiACC.Init.TIMode = SPI_TIMODE_DISABLE;
+	spiACC.Init.Mode = SPI_MODE_MASTER; 
+	
+	HAL_SPI_Init(&spiACC);
+}
+
+
+void SysTick_Handler(void)	// de base cette fonction bloque le prog, si on le programme il ne bloque pas
+{
+  HAL_IncTick(); 
+	HAL_SYSTICK_IRQHandler();
+}
