@@ -1,0 +1,178 @@
+// SPI communication sur deux axes, valeur reçue peut être lue dans SPI_Receive_Data
+
+#include <stm32f407xx.h>
+#include <stm32f4xx_hal.h>
+
+void config_init(void);
+void wait(unsigned int time);
+void write(unsigned char* command, unsigned int size);
+void receive(unsigned char* registre, unsigned int size, unsigned char* data);
+
+SPI_HandleTypeDef SPIACC;
+
+unsigned char SPISendData[2];
+unsigned char SPIReceiveData[2];
+
+int main(void)
+{
+	config_init();
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+
+	// Config ctrl_reg4 (0x20) (z-axis) odr = 3.125 Hz
+	// or crtl_reg4 (0x11)
+	// 001 0111 = 0x17
+	SPISendData[0] = 0x20;
+	SPISendData[1] = 0x11;
+
+	write(SPISendData, 2);
+
+	// Config interrupt data ready INT1 port E pin 0
+	// CTRL_REG3
+	// DRDY signal enable to INT1, Interrupt 1 enable
+	SPISendData[0] = 0x23;
+	SPISendData[1] = 0xC8;
+
+	write(SPISendData, 2);
+	// Read data (Z axis low data register (0x2C))
+	// Read data (x-axis low data register (0x
+	// Read first bit must be set (1000 000) = 0x80
+	// SPISendData[0] = 0x28;
+
+
+
+	while(1)
+	{
+	// receive(SPISendData, 1, SPIReceiveData);
+	//
+	// if(SPIReceiveData[0] != 0)
+	// {
+	// HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+	// }
+
+	}
+}
+
+
+
+void config_init(void)
+{
+
+	// Config SPI's pins
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+
+	GPIO_InitTypeDef SPI_PINS;
+
+	SPI_PINS.Mode = GPIO_MODE_AF_PP;
+	SPI_PINS.Alternate = GPIO_AF5_SPI1;
+	SPI_PINS.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+	SPI_PINS.Pin = GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
+
+	HAL_GPIO_Init(GPIOA, &SPI_PINS);
+
+	__HAL_RCC_GPIOE_CLK_ENABLE();
+
+	GPIO_InitTypeDef SPI_CS_Pins;
+
+	SPI_CS_Pins.Mode = GPIO_MODE_OUTPUT_PP;
+	SPI_CS_Pins.Speed = GPIO_SPEED_LOW;
+	SPI_CS_Pins.Pin = GPIO_PIN_3;
+
+	HAL_GPIO_Init(GPIOE, &SPI_CS_Pins);
+
+	// Config LED
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+
+	GPIO_InitTypeDef LED;
+
+	LED.Mode = GPIO_MODE_OUTPUT_PP;
+	LED.Pin = GPIO_PIN_12;
+
+	HAL_GPIO_Init(GPIOD, &LED);
+
+	// Config button, interrupt ready, pin 0 port E
+	__HAL_RCC_GPIOE_CLK_ENABLE();
+
+	GPIO_InitTypeDef INTPIN;
+
+	INTPIN.Mode = GPIO_MODE_IT_RISING;
+	INTPIN.Pull = GPIO_PULLDOWN;
+	INTPIN.Pin = GPIO_PIN_0;
+
+	HAL_GPIO_Init(GPIOE, &INTPIN);
+
+	HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+	// Config SPI
+	__HAL_RCC_SPI1_CLK_ENABLE();
+
+	SPIACC.Instance = SPI1;
+	SPIACC.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+	SPIACC.Init.Direction = SPI_DIRECTION_2LINES;
+	SPIACC.Init.CLKPhase = SPI_PHASE_1EDGE;
+	SPIACC.Init.CLKPolarity = SPI_POLARITY_LOW;
+	SPIACC.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+	SPIACC.Init.DataSize = SPI_DATASIZE_8BIT;
+	SPIACC.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	SPIACC.Init.NSS = SPI_NSS_SOFT;
+	SPIACC.Init.TIMode = SPI_TIMODE_DISABLE;
+	SPIACC.Init.Mode = SPI_MODE_MASTER;
+
+	HAL_SPI_Init(&SPIACC);
+
+}
+
+
+
+void wait(unsigned int time)
+{
+	for (int i = 0; i < time*(4000); i++);
+}
+
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+SPISendData[0] = 0x28;
+receive(SPISendData, 2, SPIReceiveData);
+int accX = (SPIReceiveData[1] << 8) | SPIReceiveData[0];
+if(SPIReceiveData[0] != 0) HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+}
+
+
+
+
+void EXTI0_IRQHandler(void)
+{
+	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
+void Systick_Handler(void)
+{
+	HAL_IncTick();
+	HAL_SYSTICK_IRQHandler();
+}
+
+void write(unsigned char* command, unsigned int size)
+{
+	//CS actif
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+	// Send data
+	HAL_SPI_Transmit(&SPIACC, command, size, 50);
+	// CS inactif
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+}
+
+void receive(unsigned char* registre, unsigned int size, unsigned char* data)
+{
+	//CS actif
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_RESET);
+	// Send data
+	// to read, must be set at 0x80 (1000 0000)
+	registre[0] = registre[0] | 0x80;
+	HAL_SPI_Transmit(&SPIACC, registre, 1, 50);
+	// Receive data
+	HAL_SPI_Receive(&SPIACC, data, size, 50);
+	// CS inactif
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_3, GPIO_PIN_SET);
+}
