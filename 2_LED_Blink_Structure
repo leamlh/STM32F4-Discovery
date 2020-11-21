@@ -1,0 +1,67 @@
+// Faire clignoter la LED verte avec des structures 
+//
+
+#define MASK_PORTD_BIT12 (0x01 << 12)
+#define MASK_PORTD_BIT24 (0x01 << (12 * 2))
+#define MASK_PORTD_BIT24_25 (0x03 << (12 * 2))
+#define MASK_RCC_AHB1EN_PORTD_EN (0x01 << 3)
+#define MASK_PORTD_ADDRESS 0x40020C00
+#define RCC_AHBxEN_ADDRESS 0x40023830
+
+typedef struct
+{
+	volatile unsigned int MODER;
+	volatile unsigned int OTYPER;
+	volatile unsigned int OSPEEDER;
+	volatile unsigned int PUPDR;
+	volatile unsigned int IDR;
+	volatile unsigned int ODR;
+}GPIO_Type;
+
+typedef struct
+{
+	volatile unsigned int AHB1EN;
+	volatile unsigned int AHB2EN;
+}RCC_Type;
+
+void config_initial(void);
+void wait(unsigned int temps); // in ms
+
+int main(void)
+{
+// PortD LEDs configuration
+//unsigned int *portD = (unsigned int*)0x40020C00;
+	GPIO_Type *portD = (GPIO_Type*)MASK_PORTD_ADDRESS;
+	config_initial();
+	while(1)
+	{
+// toogle led statut
+// *(portD + (0x14 / 4)) ^= (0x01 << 12);
+		portD->ODR ^= MASK_PORTD_BIT12;
+// wait 1 second
+		wait(250);
+	}
+}
+void config_initial(void)
+{
+	volatile RCC_Type *portRCC = (volatile RCC_Type*) RCC_AHBxEN_ADDRESS;
+	do
+	{
+		portRCC->AHB1EN |= 0x01 << 3;
+	}
+	while (!(portRCC->AHB1EN & (0x01 << 3)));
+	GPIO_Type *portD = (GPIO_Type*)MASK_PORTD_ADDRESS;
+// configuration pin 12 output --> MODER's bits 24 and 25 of port D at 01
+	unsigned int moder = portD->MODER;
+	moder &= (unsigned int)~MASK_PORTD_BIT24_25; // MODER's bits 25 and 24 at 00
+	moder |= (unsigned int)MASK_PORTD_BIT24; // MODER's bits 25 and 24 at 1
+	portD->MODER = moder;
+// configuration pin 12 push/pull --> MODER's bits 24 and 25 of port D at 0
+	portD->OTYPER &= (unsigned int)~MASK_PORTD_BIT12; // OTYPER's bits 12 at 0
+}
+
+void wait(unsigned int temps)
+{
+// 16 MHz
+	for(unsigned int i = 0; i < temps * 4000; i++); // 1 ms = 4000 loops, 16MHz/4 ins par for = 4 000 000 loops/sec
+}
