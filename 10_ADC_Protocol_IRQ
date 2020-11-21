@@ -1,0 +1,74 @@
+// ADC avec Interruption, lecture dans ADC Value
+#include <stm32f407xx.h>
+#include <stm32f4xx_hal.h>
+
+void config_init(void);
+ADC_HandleTypeDef monMainADC; // nécéssaire pour le start
+volatile unsigned char adcValue; 
+
+int main(void)
+{
+	monMainADC.Instance = ADC1;  
+	
+	HAL_Init(); 
+	config_init();
+	HAL_ADC_Init(&monMainADC);
+	while(1){
+	}
+}
+
+void config_init(void)
+{	
+	// ADC PIN CONFIGURATION
+	__HAL_RCC_GPIOA_CLK_ENABLE(); // active l'horloge
+	
+	GPIO_InitTypeDef ADC_PINS; // créee une typedef pour définir les valeurs des pins 
+	
+	ADC_PINS.Mode = GPIO_MODE_IT_RISING_FALLING; // entrée analogique
+	ADC_PINS.Pull = GPIO_NOPULL;
+	ADC_PINS.Pin = GPIO_PIN_0; // Met sur la pin 0 car branché au port PA0 avec bouton user
+
+	HAL_GPIO_Init(GPIOA, &ADC_PINS);
+	
+	
+	// ADC CONFIGURATION
+	__HAL_RCC_ADC1_CLK_ENABLE(); // Active la CLK de l'ADC 
+	
+	ADC_HandleTypeDef monADC = {0}; // nécéssaire pour la ligne suivante
+	monADC.Instance = ADC1; 
+	monADC.Init.Resolution = ADC_RESOLUTION_8B; 
+	monADC.Init.DataAlign = ADC_DATAALIGN_RIGHT; 
+	monADC.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+
+	
+	HAL_ADC_Init(&monADC); // configure l'initialisation 
+	
+	// ADC CHANNEL CONFIG
+	ADC_ChannelConfTypeDef channelADC; // On configure le channel pour l'intégrer dans la fonction HAL
+	channelADC.Channel = ADC_CHANNEL_0; // On est sur IN0
+	channelADC.Rank = 1;
+	channelADC.SamplingTime = ADC_SAMPLETIME_15CYCLES;
+	
+	HAL_ADC_ConfigChannel(&monADC, &channelADC);
+	
+	HAL_NVIC_SetPriority(EXTI0_IRQn,5,5); // PreemtPriority = 5, SubPriority = 5
+	HAL_NVIC_EnableIRQ(EXTI0_IRQn); 
+}
+
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if(GPIO_Pin == GPIO_PIN_0){
+		HAL_ADC_Start(&monMainADC); // Start the ADC peripheral using HAL_ADC_Start() 
+		if (HAL_OK == HAL_ADC_PollForConversion(&monMainADC, 2)){ // Wait for end of conversion, at this stage user can specify the value of timeout according to his end application
+			adcValue = HAL_ADC_GetValue(&monMainADC); // To read the ADC converted values
+		}
+		HAL_ADC_Stop(&monMainADC); // Stop the ADC peripheral	
+	}
+}
+
+void EXTI0_IRQHandler(void){
+	HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}	
+
+
