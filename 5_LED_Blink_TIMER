@@ -17,7 +17,7 @@ int main(void)
 
 void config_initial(void)
 {
-// activation du port D
+// activation du port D  
     __HAL_RCC_GPIOD_CLK_ENABLE(); 
     GPIO_InitTypeDef monLED;
 	
