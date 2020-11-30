@@ -27,7 +27,7 @@ void config_initial(void)
 	
 	HAL_GPIO_Init(GPIOD, &monLED); 
 
-	// on veut configurer le pin 0 en entrée
+	// on veut configurer le pin 0 en entrée -> PA0 Bouton USER
 	// activation du port A 
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	GPIO_InitTypeDef monButton;
